@@ -146,21 +146,12 @@ export class Session {
    * Extract EOR-delimited records and forward to WebSocket.
    */
   private handlePostNegotiationData(data: Buffer): void {
-    // For post-negotiation data, we need to handle the case where
-    // the data may still contain IAC commands mixed with data.
-    // The RecordExtractor handles IAC EOR delimiting and IAC escaping.
-    //
-    // However, we also need to handle any stray telnet commands
-    // that arrive after negotiation (e.g., timing marks).
-    // For simplicity, we pass through the negotiator which strips them.
-    const { response, dataPassthrough } = this.negotiator.processBytes(data);
-    if (response.length > 0) {
-      this.telnetSocket.sendRaw(response);
-    }
-
-    // Feed remaining data to record extractor
-    const dataToProcess = dataPassthrough ?? data;
-    const records = this.recordExtractor.feed(dataToProcess);
+    // Feed raw data directly to the record extractor.
+    // RecordExtractor handles IAC EOR delimiting and IAC byte-stuffing.
+    // Note: do NOT filter through negotiator.processBytes() here — it
+    // strips IAC EOR (the record delimiter) and un-escapes IAC IAC,
+    // which makes the data unframed for the RecordExtractor.
+    const records = this.recordExtractor.feed(data);
 
     for (const record of records) {
       // Send each complete 3270 record as a binary WebSocket frame
