@@ -31,11 +31,12 @@ export function TerminalEmulator() {
   const [fontSize, setFontSize] = useState(savedSettings.fontSize);
 
   const handleConnect = useCallback(async (params: ConnectionParams) => {
+    setShowDialog(false);
     try {
       await session.connect(params);
-      setShowDialog(false);
     } catch (err) {
       console.error('Connection failed:', err);
+      setShowDialog(true);
     }
   }, [session.connect]);
 
@@ -101,7 +102,7 @@ export function TerminalEmulator() {
 
       <ConnectionDialog
         onConnect={handleConnect}
-        visible={showDialog && !session.state.connected}
+        visible={showDialog}
       />
     </div>
   );
