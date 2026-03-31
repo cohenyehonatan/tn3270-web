@@ -217,6 +217,10 @@ export const Telnet = {
   OPT_TERMINAL_TYPE: 0x18,
   OPT_EOR: 0x19,
   OPT_TN3270E: 0x28,
+
+  // TERMINAL-TYPE sub-option commands (RFC 1091)
+  TERMINAL_TYPE_IS: 0x00,
+  TERMINAL_TYPE_SEND: 0x01,
 } as const;
 
 // --- TN3270E Constants ---

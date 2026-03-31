@@ -272,13 +272,13 @@ export class TelnetNegotiator extends EventEmitter {
 
   /** Handle TERMINAL-TYPE sub-negotiation */
   private handleTerminalTypeSub(data: Buffer): number[] {
-    // Server sends: TERMINAL-TYPE SEND
-    if (data.length >= 2 && data[1] === TN3270E.SEND) {
+    // Server sends: TERMINAL-TYPE SEND (RFC 1091: SEND = 0x01)
+    if (data.length >= 2 && data[1] === Telnet.TERMINAL_TYPE_SEND) {
       // Respond with: TERMINAL-TYPE IS <terminal-type>
       const termType = Buffer.from(this.config.terminalType, 'ascii');
       const response = [
         Telnet.IAC, Telnet.SB, Telnet.OPT_TERMINAL_TYPE,
-        0x00, // IS
+        Telnet.TERMINAL_TYPE_IS,
         ...termType,
         Telnet.IAC, Telnet.SE,
       ];
