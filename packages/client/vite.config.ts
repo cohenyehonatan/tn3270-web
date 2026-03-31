@@ -1,0 +1,15 @@
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    port: 3270,
+    proxy: {
+      '/tn3270': {
+        target: 'ws://localhost:3271',
+        ws: true,
+      },
+    },
+  },
+});
