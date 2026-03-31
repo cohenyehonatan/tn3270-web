@@ -10,8 +10,17 @@ import { decodeBufferAddress, ebcdicToString, DataStreamBuilder, Color3270 } fro
 import { buildLoginScreen } from './screens/login-screen.js';
 import { buildIspfPrimaryMenu } from './screens/ispf-primary.js';
 import { buildIspfEditScreen } from './screens/ispf-edit.js';
+import { buildIspfDslistScreen } from './screens/ispf-dslist.js';
+import { buildCicsSignonScreen, buildCicsMenuScreen } from './screens/cics-signon.js';
 
-type DemoScreen = 'login' | 'ispf-primary' | 'ispf-edit' | 'logoff';
+type DemoScreen =
+  | 'login'
+  | 'ispf-primary'
+  | 'ispf-edit'
+  | 'ispf-dslist'
+  | 'cics-signon'
+  | 'cics-menu'
+  | 'logoff';
 
 interface ParsedResponse {
   aid: number;
@@ -42,6 +51,12 @@ export class DemoHost {
         return this.handleIspfPrimary(parsed);
       case 'ispf-edit':
         return this.handleIspfEdit(parsed);
+      case 'ispf-dslist':
+        return this.handleIspfDslist(parsed);
+      case 'cics-signon':
+        return this.handleCicsSignon(parsed);
+      case 'cics-menu':
+        return this.handleCicsMenu(parsed);
       case 'logoff':
         return null;
       default:
@@ -64,7 +79,6 @@ export class DemoHost {
         const fieldAddr = decodeBufferAddress(data[pos + 1], data[pos + 2]);
         pos += 3;
 
-        // Read data bytes until next SBA or end
         const fieldData: number[] = [];
         while (pos < data.length && data[pos] !== Order.SBA) {
           fieldData.push(data[pos]);
@@ -80,6 +94,15 @@ export class DemoHost {
     return { aid, cursorAddress, fields };
   }
 
+  /** Extract the first non-empty field value */
+  private getFirstFieldValue(parsed: ParsedResponse): string {
+    for (const [, value] of parsed.fields) {
+      const trimmed = value.trim();
+      if (trimmed.length > 0) return trimmed;
+    }
+    return '';
+  }
+
   private handleLogin(parsed: ParsedResponse): Uint8Array {
     if (parsed.aid === AID.PF3) {
       this.currentScreen = 'logoff';
@@ -87,25 +110,11 @@ export class DemoHost {
     }
 
     if (parsed.aid === AID.ENTER) {
-      // Extract userid from the field at row 9, col 31 (address 751)
-      // The fields map uses the field start address
-      this.userid = '';
-      for (const [, value] of parsed.fields) {
-        if (value.trim().length > 0 && this.userid === '') {
-          this.userid = value.trim();
-          break;
-        }
-      }
-
-      if (!this.userid) {
-        this.userid = 'DEMO';
-      }
-
+      this.userid = this.getFirstFieldValue(parsed) || 'DEMO';
       this.currentScreen = 'ispf-primary';
       return buildIspfPrimaryMenu(this.userid);
     }
 
-    // For any other AID, just redisplay
     return buildLoginScreen();
   }
 
@@ -116,23 +125,24 @@ export class DemoHost {
     }
 
     if (parsed.aid === AID.ENTER) {
-      // Check the option field value
-      let option = '';
-      for (const [, value] of parsed.fields) {
-        option = value.trim();
-        break;
-      }
+      const option = this.getFirstFieldValue(parsed);
 
       switch (option) {
         case '2':
           this.currentScreen = 'ispf-edit';
           return buildIspfEditScreen(this.userid);
+        case '3':
+          this.currentScreen = 'ispf-dslist';
+          return buildIspfDslistScreen(this.userid);
+        case '6':
+          // Command option — go to CICS demo
+          this.currentScreen = 'cics-signon';
+          return buildCicsSignonScreen();
         case 'X':
         case 'x':
           this.currentScreen = 'login';
           return this.buildLogoffScreen();
         default:
-          // Unimplemented option — show message and redisplay
           return this.buildMessageScreen(
             `Option "${option || '(none)'}" is not implemented in demo mode.`,
             'ispf-primary',
@@ -148,9 +158,47 @@ export class DemoHost {
       this.currentScreen = 'ispf-primary';
       return buildIspfPrimaryMenu(this.userid);
     }
-
-    // For demo, just redisplay the edit screen
     return buildIspfEditScreen(this.userid);
+  }
+
+  private handleIspfDslist(parsed: ParsedResponse): Uint8Array {
+    if (parsed.aid === AID.PF3) {
+      this.currentScreen = 'ispf-primary';
+      return buildIspfPrimaryMenu(this.userid);
+    }
+    return buildIspfDslistScreen(this.userid);
+  }
+
+  private handleCicsSignon(parsed: ParsedResponse): Uint8Array {
+    if (parsed.aid === AID.PF3) {
+      this.currentScreen = 'ispf-primary';
+      return buildIspfPrimaryMenu(this.userid);
+    }
+    if (parsed.aid === AID.ENTER) {
+      const enteredUser = this.getFirstFieldValue(parsed) || this.userid;
+      this.currentScreen = 'cics-menu';
+      return buildCicsMenuScreen(enteredUser);
+    }
+    return buildCicsSignonScreen();
+  }
+
+  private handleCicsMenu(parsed: ParsedResponse): Uint8Array {
+    if (parsed.aid === AID.PF3) {
+      this.currentScreen = 'ispf-primary';
+      return buildIspfPrimaryMenu(this.userid);
+    }
+    if (parsed.aid === AID.ENTER) {
+      const txn = this.getFirstFieldValue(parsed).toUpperCase();
+      if (txn === 'CESF') {
+        this.currentScreen = 'ispf-primary';
+        return buildIspfPrimaryMenu(this.userid);
+      }
+      return this.buildMessageScreen(
+        `Transaction "${txn || '(none)'}" is simulated in demo mode.`,
+        'cics-menu',
+      );
+    }
+    return buildCicsMenuScreen(this.userid);
   }
 
   private buildLogoffScreen(): Uint8Array {
@@ -174,7 +222,6 @@ export class DemoHost {
 
     b.insertCursor(12, 56);
 
-    // Reset state so next Enter goes to login
     this.currentScreen = 'login';
 
     return b.build();

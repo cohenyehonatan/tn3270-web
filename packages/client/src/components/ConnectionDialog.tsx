@@ -2,10 +2,16 @@
  * ConnectionDialog Component
  *
  * Allows the user to configure and connect to a mainframe host,
- * or start a demo session.
+ * load saved profiles, or start a demo session.
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import {
+  loadProfiles,
+  addProfile,
+  deleteProfile,
+  type ConnectionProfile,
+} from '../config/profiles.js';
 
 export interface ConnectionParams {
   mode: 'demo' | 'live';
@@ -39,12 +45,29 @@ const labelStyle: React.CSSProperties = {
   display: 'block',
 };
 
+const smallBtnStyle: React.CSSProperties = {
+  padding: '2px 8px',
+  backgroundColor: 'transparent',
+  border: '1px solid #555',
+  borderRadius: '3px',
+  cursor: 'pointer',
+  fontFamily: '"IBM Plex Mono", Consolas, monospace',
+  fontSize: '11px',
+};
+
 export function ConnectionDialog({ onConnect, visible }: ConnectionDialogProps) {
   const [host, setHost] = useState('');
   const [port, setPort] = useState('23');
   const [tls, setTls] = useState(false);
   const [terminalType, setTerminalType] = useState('IBM-3279-2-E');
   const [luName, setLuName] = useState('');
+  const [profiles, setProfiles] = useState<ConnectionProfile[]>([]);
+
+  useEffect(() => {
+    if (visible) {
+      setProfiles(loadProfiles());
+    }
+  }, [visible]);
 
   const handleLiveConnect = useCallback(() => {
     if (!host.trim()) return;
@@ -69,6 +92,44 @@ export function ConnectionDialog({ onConnect, visible }: ConnectionDialogProps) 
     });
   }, [onConnect]);
 
+  const handleSaveProfile = useCallback(() => {
+    if (!host.trim()) return;
+    const name = `${host.trim()}:${port}`;
+    const profile = addProfile({
+      name,
+      host: host.trim(),
+      port: parseInt(port, 10) || 23,
+      tls,
+      terminalType,
+      luName: luName.trim(),
+    });
+    setProfiles((p) => [...p, profile]);
+  }, [host, port, tls, terminalType, luName]);
+
+  const handleLoadProfile = useCallback((profile: ConnectionProfile) => {
+    setHost(profile.host);
+    setPort(String(profile.port));
+    setTls(profile.tls);
+    setTerminalType(profile.terminalType);
+    setLuName(profile.luName);
+  }, []);
+
+  const handleDeleteProfile = useCallback((id: string) => {
+    deleteProfile(id);
+    setProfiles((p) => p.filter((pr) => pr.id !== id));
+  }, []);
+
+  const handleConnectProfile = useCallback((profile: ConnectionProfile) => {
+    onConnect({
+      mode: 'live',
+      host: profile.host,
+      port: profile.port,
+      tls: profile.tls,
+      terminalType: profile.terminalType,
+      luName: profile.luName,
+    });
+  }, [onConnect]);
+
   if (!visible) return null;
 
   return (
@@ -89,7 +150,9 @@ export function ConnectionDialog({ onConnect, visible }: ConnectionDialogProps) 
           border: '1px solid #333',
           borderRadius: '6px',
           padding: '24px',
-          width: '420px',
+          width: '480px',
+          maxHeight: '90vh',
+          overflowY: 'auto',
           boxShadow: '0 0 30px rgba(51,255,51,0.1)',
         }}
       >
@@ -104,6 +167,58 @@ export function ConnectionDialog({ onConnect, visible }: ConnectionDialogProps) 
         >
           TN3270 Connection
         </h2>
+
+        {/* Saved profiles */}
+        {profiles.length > 0 && (
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ ...labelStyle, marginBottom: '8px' }}>Saved Profiles</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              {profiles.map((p) => (
+                <div
+                  key={p.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '6px 8px',
+                    backgroundColor: '#1a1a1a',
+                    borderRadius: '3px',
+                    border: '1px solid #2a2a2a',
+                  }}
+                >
+                  <span
+                    style={{
+                      flex: 1,
+                      color: '#33ff33',
+                      fontSize: '13px',
+                      fontFamily: '"IBM Plex Mono", Consolas, monospace',
+                      cursor: 'pointer',
+                    }}
+                    onClick={() => handleConnectProfile(p)}
+                    title="Click to connect"
+                  >
+                    {p.name}
+                    {p.tls && <span style={{ color: '#ffff55', marginLeft: '6px' }}>TLS</span>}
+                  </span>
+                  <button
+                    onClick={() => handleLoadProfile(p)}
+                    style={{ ...smallBtnStyle, color: '#55ffff' }}
+                    title="Load into form"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => handleDeleteProfile(p.id)}
+                    style={{ ...smallBtnStyle, color: '#ff5555' }}
+                    title="Delete profile"
+                  >
+                    Del
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <div>
@@ -166,6 +281,19 @@ export function ConnectionDialog({ onConnect, visible }: ConnectionDialogProps) 
             <label htmlFor="tls" style={{ color: '#aaa', fontSize: '13px' }}>
               Use TLS
             </label>
+
+            {host.trim() && (
+              <button
+                onClick={handleSaveProfile}
+                style={{
+                  ...smallBtnStyle,
+                  color: '#55ffff',
+                  marginLeft: 'auto',
+                }}
+              >
+                Save Profile
+              </button>
+            )}
           </div>
 
           <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
