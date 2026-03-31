@@ -43,6 +43,7 @@ const labelStyle: React.CSSProperties = {
   fontSize: '12px',
   marginBottom: '4px',
   display: 'block',
+  fontFamily: '"IBM Plex Mono", Consolas, monospace',
 };
 
 const smallBtnStyle: React.CSSProperties = {
@@ -278,7 +279,7 @@ export function ConnectionDialog({ onConnect, visible }: ConnectionDialogProps) 
               onChange={(e) => setTls(e.target.checked)}
               style={{ accentColor: '#33ff33' }}
             />
-            <label htmlFor="tls" style={{ color: '#aaa', fontSize: '13px' }}>
+            <label htmlFor="tls" style={{ color: '#aaa', fontSize: '13px', fontFamily: '"IBM Plex Mono", Consolas, monospace' }}>
               Use TLS
             </label>
 
