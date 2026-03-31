@@ -10,7 +10,9 @@ import { DataStreamParser } from '../protocol/stream-parser.js';
 import { KeyboardHandler, type KeyboardHandlerCallbacks } from '../keyboard/keyboard-handler.js';
 import type { TerminalConnection } from '../connection/connection.js';
 import { MockConnection } from '../demo/mock-connection.js';
+import { WebSocketConnection } from '../connection/websocket-connection.js';
 import type { StatusLineInfo } from '../renderer/canvas-renderer.js';
+import type { ConnectionParams } from '../components/ConnectionDialog.js';
 
 export interface TerminalSessionState {
   connected: boolean;
@@ -23,7 +25,7 @@ export interface TerminalSession {
   buffer: ScreenBuffer;
   keyboardHandler: KeyboardHandler;
   state: TerminalSessionState;
-  connect: (mode: 'demo') => Promise<void>;
+  connect: (params: ConnectionParams) => Promise<void>;
   disconnect: () => void;
   /** Increment to trigger re-render */
   renderTick: number;
@@ -60,7 +62,6 @@ export function useTerminalSession(screenSize: ScreenSize): TerminalSession {
       triggerRender();
     },
     onAlarm: () => {
-      // Produce a short beep
       try {
         const ctx = new AudioContext();
         const osc = ctx.createOscillator();
@@ -99,7 +100,6 @@ export function useTerminalSession(screenSize: ScreenSize): TerminalSession {
     const result = parser.parse(data, buffer);
 
     if (result.type === 'write') {
-      // Unlock keyboard if WCC says so
       if (result.wcc.keyboardRestore) {
         keyboardHandlerRef.current.keyboardLocked = false;
       }
@@ -111,28 +111,85 @@ export function useTerminalSession(screenSize: ScreenSize): TerminalSession {
     triggerRender();
   }, [triggerRender]);
 
-  const connect = useCallback(async (mode: 'demo') => {
-    // For now, only demo mode
-    const connection = new MockConnection();
+  const connect = useCallback(async (params: ConnectionParams) => {
+    // Disconnect any existing connection
+    connectionRef.current?.disconnect();
+    connectionRef.current = null;
+
+    // Clear the buffer for a fresh session
+    bufferRef.current.clear();
+    bufferRef.current.markFullDirty();
+    triggerRender();
+
+    let connection: TerminalConnection;
+    let statusLabel: string;
+
+    if (params.mode === 'demo') {
+      connection = new MockConnection();
+      statusLabel = 'Demo Mode';
+    } else {
+      // Determine proxy URL — same host as the page, or localhost in dev
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const proxyUrl = `${wsProtocol}//${window.location.host}/tn3270`;
+
+      connection = new WebSocketConnection({
+        proxyUrl,
+        host: params.host,
+        port: params.port,
+        tls: params.tls,
+        terminalType: params.terminalType,
+        luName: params.luName || undefined,
+      });
+      statusLabel = `${params.host}:${params.port}`;
+    }
+
     connectionRef.current = connection;
 
     connection.onData(handleIncomingData);
+
     connection.onDisconnect((reason) => {
       setState((s) => ({
         ...s,
         connected: false,
-        statusLine: { ...s.statusLine, connected: false, connectionStatus: `Disconnected: ${reason}` },
+        statusLine: {
+          ...s.statusLine,
+          connected: false,
+          connectionStatus: `Disconnected: ${reason}`,
+        },
       }));
     });
+
+    connection.onError((err) => {
+      setState((s) => ({
+        ...s,
+        statusLine: {
+          ...s.statusLine,
+          connectionStatus: `Error: ${err.message}`,
+        },
+      }));
+    });
+
+    setState((s) => ({
+      ...s,
+      statusLine: {
+        ...s.statusLine,
+        connectionStatus: 'Connecting...',
+        terminalType: params.terminalType,
+      },
+    }));
 
     await connection.connect();
 
     setState((s) => ({
       ...s,
       connected: true,
-      statusLine: { ...s.statusLine, connected: true, connectionStatus: 'Demo Mode' },
+      statusLine: {
+        ...s.statusLine,
+        connected: true,
+        connectionStatus: statusLabel,
+      },
     }));
-  }, [handleIncomingData]);
+  }, [handleIncomingData, triggerRender]);
 
   const disconnect = useCallback(() => {
     connectionRef.current?.disconnect();

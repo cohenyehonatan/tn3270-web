@@ -1,31 +1,39 @@
 /**
  * TerminalEmulator — Top-level Component
  *
- * Orchestrates the terminal session, screen, and status bar.
+ * Orchestrates the terminal session, screen, status bar, and connection dialog.
  */
 
-import { useCallback, useEffect } from 'react';
+import { useCallback, useState } from 'react';
 import { useTerminalSession } from '../hooks/useTerminalSession.js';
 import { TerminalScreen } from './TerminalScreen.js';
 import { StatusBar } from './StatusBar.js';
+import { ConnectionDialog, type ConnectionParams } from './ConnectionDialog.js';
 
 const DEFAULT_SCREEN_SIZE = { rows: 24, cols: 80 };
 
 export function TerminalEmulator() {
   const session = useTerminalSession(DEFAULT_SCREEN_SIZE);
+  const [showDialog, setShowDialog] = useState(true);
 
-  const handleConnect = useCallback(() => {
-    session.connect('demo');
+  const handleConnect = useCallback(async (params: ConnectionParams) => {
+    try {
+      await session.connect(params);
+      setShowDialog(false);
+    } catch (err) {
+      // Connection error — dialog stays open, error shown in status
+      console.error('Connection failed:', err);
+    }
   }, [session.connect]);
 
   const handleDisconnect = useCallback(() => {
     session.disconnect();
+    setShowDialog(true);
   }, [session.disconnect]);
 
-  // Auto-connect to demo mode on mount
-  useEffect(() => {
-    session.connect('demo');
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const handleShowDialog = useCallback(() => {
+    setShowDialog(true);
+  }, []);
 
   return (
     <div
@@ -55,10 +63,15 @@ export function TerminalEmulator() {
         />
         <StatusBar
           statusLine={session.state.statusLine}
-          onConnect={handleConnect}
+          onConnect={handleShowDialog}
           onDisconnect={handleDisconnect}
         />
       </div>
+
+      <ConnectionDialog
+        onConnect={handleConnect}
+        visible={showDialog && !session.state.connected}
+      />
     </div>
   );
 }

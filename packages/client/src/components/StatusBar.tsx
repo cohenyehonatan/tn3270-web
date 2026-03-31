@@ -50,7 +50,7 @@ export function StatusBar({ statusLine, onConnect, onDisconnect }: StatusBarProp
             fontSize: '12px',
           }}
         >
-          Demo Mode
+          Connect
         </button>
       ) : (
         <button
