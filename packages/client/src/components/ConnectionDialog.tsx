@@ -155,6 +155,7 @@ export function ConnectionDialog({ onConnect, visible }: ConnectionDialogProps) 
           maxHeight: '90vh',
           overflowY: 'auto',
           boxShadow: '0 0 30px rgba(51,255,51,0.1)',
+          fontFamily: '"IBM Plex Mono", Consolas, monospace',
         }}
       >
         <h2
