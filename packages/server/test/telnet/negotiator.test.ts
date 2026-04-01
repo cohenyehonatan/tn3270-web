@@ -100,6 +100,9 @@ describe('TelnetNegotiator', () => {
       Telnet.IAC, Telnet.DO, Telnet.OPT_TERMINAL_TYPE,
     ]));
 
+    // Must not complete before terminal type exchange
+    expect(completed).toBe(false);
+
     // Terminal type sub-negotiation
     neg.processBytes(Buffer.from([
       Telnet.IAC, Telnet.SB, Telnet.OPT_TERMINAL_TYPE,
@@ -110,6 +113,24 @@ describe('TelnetNegotiator', () => {
     expect(completed).toBe(true);
     expect(negotiationResult!.terminalType).toBe('IBM-3279-2-E');
     expect(negotiationResult!.tn3270e).toBe(false);
+  });
+
+  it('does not complete basic TN3270 before TERMINAL-TYPE SEND', () => {
+    const neg = new TelnetNegotiator({ terminalType: 'IBM-3279-2-E' });
+
+    let completed = false;
+    neg.on('negotiation-complete', () => {
+      completed = true;
+    });
+
+    neg.processBytes(Buffer.from([
+      Telnet.IAC, Telnet.DO, Telnet.OPT_BINARY,
+      Telnet.IAC, Telnet.DO, Telnet.OPT_EOR,
+      Telnet.IAC, Telnet.DO, Telnet.OPT_TERMINAL_TYPE,
+    ]));
+
+    expect(completed).toBe(false);
+    expect(neg.isComplete).toBe(false);
   });
 });
 

@@ -56,6 +56,7 @@ export class TelnetNegotiator extends EventEmitter {
   };
 
   private tn3270eMode = false;
+  private terminalTypeExchanged = false;
   private negotiatedTermType = '';
   private negotiatedLU = '';
 
@@ -190,6 +191,9 @@ export class TelnetNegotiator extends EventEmitter {
 
       case Telnet.OPT_TERMINAL_TYPE:
         this.optionState.terminalType = true;
+        if (!this.tn3270eMode) {
+          this.state = 'terminal-type';
+        }
         return [Telnet.IAC, Telnet.WILL, Telnet.OPT_TERMINAL_TYPE];
 
       case Telnet.OPT_TN3270E:
@@ -283,6 +287,7 @@ export class TelnetNegotiator extends EventEmitter {
         Telnet.IAC, Telnet.SE,
       ];
 
+      this.terminalTypeExchanged = true;
       this.checkNegotiationComplete();
       return response;
     }
@@ -378,7 +383,13 @@ export class TelnetNegotiator extends EventEmitter {
 
   /** Check if basic TN3270 negotiation is complete */
   private checkNegotiationComplete(): void {
-    if (this.optionState.binary && this.optionState.eor) {
+    if (this.tn3270eMode) return;
+
+    if (
+      this.optionState.binary &&
+      this.optionState.eor &&
+      this.terminalTypeExchanged
+    ) {
       this.state = 'complete';
       this.emit('negotiation-complete', this.getResult());
     }
