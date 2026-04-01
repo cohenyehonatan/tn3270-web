@@ -37,19 +37,29 @@ export function TerminalScreen({
   const rendererRef = useRef<CanvasRenderer | null>(null);
   const selectionRef = useRef(new SelectionManager(screenSize.cols));
 
-  // Initialize renderer when canvas is available, or when theme/fontSize change
+  // Effect 1: renderer lifecycle
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
     const renderer = new CanvasRenderer(canvas, screenSize, { theme, fontSize });
     rendererRef.current = renderer;
-
     return () => {
       renderer.dispose();
       rendererRef.current = null;
     };
   }, [screenSize, theme, fontSize]);
+
+  // Effect 2: copy handler (separate concern)
+  useEffect(() => {
+    const handleCopy = (e: ClipboardEvent) => {
+      const text = selectionRef.current.getSelectedText(buffer);
+      if (!text) return;
+      e.preventDefault();
+      e.clipboardData?.setData('text/plain', text);
+    };
+    document.addEventListener('copy', handleCopy);
+    return () => document.removeEventListener('copy', handleCopy);
+  }, [buffer]); // re-registers only when buffer changes
 
   // Full render helper
   const doRender = useCallback(() => {
@@ -90,8 +100,9 @@ export function TerminalScreen({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      // Ctrl+C with selection = copy
-      if (e.ctrlKey && e.key === 'c' && selectionRef.current.selection) {
+      // Ctrl+C or Cmd+C with selection = copy
+      const isCopy = (e.ctrlKey || e.metaKey) && e.key === 'c';
+      if (isCopy && selectionRef.current.selection) {
         const text = selectionRef.current.getSelectedText(buffer);
         navigator.clipboard.writeText(text);
         selectionRef.current.clearSelection();
@@ -100,8 +111,9 @@ export function TerminalScreen({
         return;
       }
 
-      // Ctrl+V = paste
-      if (e.ctrlKey && e.key === 'v') {
+      // Ctrl+V or Cmd+V = paste
+      const isPaste = (e.ctrlKey || e.metaKey) && e.key === 'v';
+      if (isPaste) {
         navigator.clipboard.readText().then((text) => {
           for (const char of text) {
             if (char === '\n' || char === '\r') continue;
@@ -114,8 +126,9 @@ export function TerminalScreen({
         return;
       }
 
-      // Clear selection on any other keypress
-      if (selectionRef.current.selection) {
+      // Clear selection on any other keypress (ignore bare modifier keys)
+      const isModifierOnly = ['Meta', 'Control', 'Alt', 'Shift'].includes(e.key);
+      if (selectionRef.current.selection && !isModifierOnly) {
         selectionRef.current.clearSelection();
         doRender();
       }
