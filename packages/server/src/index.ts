@@ -58,6 +58,9 @@ wss.on('connection', (ws: WebSocket) => {
         };
 
         console.log(`[proxy] Connecting to ${config.host}:${config.port} (TLS: ${config.tls})`);
+        console.log(
+          `[proxy] Connect request details term=${config.terminalType}${config.luName ? ` lu=${config.luName}` : ''}`,
+        );
 
         try {
           const session = await sessionManager.createSession(ws, config);
