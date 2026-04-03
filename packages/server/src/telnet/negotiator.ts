@@ -183,10 +183,12 @@ export class TelnetNegotiator extends EventEmitter {
     switch (option) {
       case Telnet.OPT_BINARY:
         this.optionState.binary = true;
+        this.checkNegotiationComplete();
         return [Telnet.IAC, Telnet.WILL, Telnet.OPT_BINARY];
 
       case Telnet.OPT_EOR:
         this.optionState.eor = true;
+        this.checkNegotiationComplete();
         return [Telnet.IAC, Telnet.WILL, Telnet.OPT_EOR];
 
       case Telnet.OPT_TERMINAL_TYPE:
@@ -215,10 +217,12 @@ export class TelnetNegotiator extends EventEmitter {
     switch (option) {
       case Telnet.OPT_BINARY:
         this.optionState.binary = true;
+        this.checkNegotiationComplete();
         return [Telnet.IAC, Telnet.DO, Telnet.OPT_BINARY];
 
       case Telnet.OPT_EOR:
         this.optionState.eor = true;
+        this.checkNegotiationComplete();
         return [Telnet.IAC, Telnet.DO, Telnet.OPT_EOR];
 
       case Telnet.OPT_TN3270E:

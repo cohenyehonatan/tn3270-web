@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { TelnetNegotiator } from '../../src/telnet/negotiator.js';
 import { RecordExtractor } from '../../src/transport/telnet-socket.js';
-import { Telnet, TN3270E } from '@tn3270/shared';
+import { Telnet } from '@tn3270/shared';
 
 describe('TelnetNegotiator', () => {
   it('responds WILL to DO BINARY', () => {
@@ -53,7 +53,7 @@ describe('TelnetNegotiator', () => {
     // Server sends TERMINAL-TYPE SEND
     const { response } = neg.processBytes(Buffer.from([
       Telnet.IAC, Telnet.SB, Telnet.OPT_TERMINAL_TYPE,
-      TN3270E.SEND,
+      Telnet.TERMINAL_TYPE_SEND,
       Telnet.IAC, Telnet.SE,
     ]));
 
@@ -106,13 +106,42 @@ describe('TelnetNegotiator', () => {
     // Terminal type sub-negotiation
     neg.processBytes(Buffer.from([
       Telnet.IAC, Telnet.SB, Telnet.OPT_TERMINAL_TYPE,
-      TN3270E.SEND,
+      Telnet.TERMINAL_TYPE_SEND,
       Telnet.IAC, Telnet.SE,
     ]));
 
     expect(completed).toBe(true);
     expect(negotiationResult!.terminalType).toBe('IBM-3279-2-E');
     expect(negotiationResult!.tn3270e).toBe(false);
+  });
+
+  it('completes when BINARY and EOR arrive after TERMINAL-TYPE SEND', () => {
+    const neg = new TelnetNegotiator({ terminalType: 'IBM-3279-2-E' });
+
+    let completed = false;
+    neg.on('negotiation-complete', () => {
+      completed = true;
+    });
+
+    // Server asks for terminal type first.
+    neg.processBytes(Buffer.from([Telnet.IAC, Telnet.DO, Telnet.OPT_TERMINAL_TYPE]));
+    neg.processBytes(Buffer.from([
+      Telnet.IAC, Telnet.SB, Telnet.OPT_TERMINAL_TYPE,
+      Telnet.TERMINAL_TYPE_SEND,
+      Telnet.IAC, Telnet.SE,
+    ]));
+
+    // Must still wait for binary + eor.
+    expect(completed).toBe(false);
+
+    // Server negotiates EOR and BINARY later.
+    neg.processBytes(Buffer.from([
+      Telnet.IAC, Telnet.DO, Telnet.OPT_EOR,
+      Telnet.IAC, Telnet.DO, Telnet.OPT_BINARY,
+    ]));
+
+    expect(completed).toBe(true);
+    expect(neg.isComplete).toBe(true);
   });
 
   it('does not complete basic TN3270 before TERMINAL-TYPE SEND', () => {
