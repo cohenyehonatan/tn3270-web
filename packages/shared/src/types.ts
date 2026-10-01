@@ -72,6 +72,7 @@ export type ParseResult =
   | { type: 'write'; wcc: WCC }
   | { type: 'read-request'; command: number }
   | { type: 'erase-all-unprotected' }
+  | { type: 'response'; data: Uint8Array }
   | { type: 'error'; message: string };
 
 /** Connection configuration */

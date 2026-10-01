@@ -13,6 +13,7 @@ import {
 } from '@tn3270/shared';
 import type { WCC, CellAttributes, ParseResult } from '@tn3270/shared';
 import { decodeBufferAddress } from '@tn3270/shared';
+import { buildQueryReply, isReadPartitionQuery } from './query-reply.js';
 import { parseFieldAttribute } from '@tn3270/shared';
 import { ScreenBuffer } from '../buffer/screen-buffer.js';
 
@@ -101,10 +102,17 @@ export class DataStreamParser {
         buffer.clearUnprotected();
         return { type: 'erase-all-unprotected' };
 
-      case Command.WRITE_STRUCTURED_FIELD:
-        // WSF is complex and rarely needed for basic emulation
-        // For now, skip the structured field data
+      case Command.WRITE_STRUCTURED_FIELD: {
+        // Host Write Structured Field. The one case that matters for basic
+        // operation is Read Partition (Query): TSO full-screen logon issues it
+        // and waits for a Query Reply before painting its first panel (the
+        // password prompt). Answer it; otherwise ignore the structured fields.
+        const sfData = data.subarray(1);
+        if (isReadPartitionQuery(sfData)) {
+          return { type: 'response', data: buildQueryReply(buffer.rows, buffer.cols) };
+        }
         return { type: 'write', wcc: { keyboardRestore: true, resetMDT: false, alarm: false, resetPartition: false } };
+      }
 
       default:
         return { type: 'error', message: `Unknown command: 0x${command.toString(16)}` };

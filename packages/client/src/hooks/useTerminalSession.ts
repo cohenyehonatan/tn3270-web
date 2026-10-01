@@ -106,6 +106,9 @@ export function useTerminalSession(screenSize: ScreenSize): TerminalSession {
       if (result.wcc.alarm) {
         callbacks.onAlarm();
       }
+    } else if (result.type === 'response') {
+      // e.g. Query Reply answering a host Read Partition (Query)
+      connectionRef.current?.send(result.data);
     }
 
     triggerRender();
