@@ -21,9 +21,8 @@ describe('Query Reply (WSF Read Partition)', () => {
   it('builds a Query Reply led by the SF AID (0x88)', () => {
     const qr = buildQueryReply(24, 80);
     expect(qr[0]).toBe(0x88);
-    // First structured field (Summary): len-hi len-lo 81 80 ...
+    // First structured field is the Summary: len-hi len-lo 81 80 ...
     expect(qr[1]).toBe(0x00);
-    expect(qr[2]).toBe(0x08); // summary length
     expect(qr[3]).toBe(0x81); // Query Reply SFID
     expect(qr[4]).toBe(0x80); // QCODE = Summary
   });
@@ -39,6 +38,16 @@ describe('Query Reply (WSF Read Partition)', () => {
     expect(qr[ua + 7]).toBe(0x18); // height lo = 24
     // implicit partition present (0x81 0xa6)
     expect(qr.some((b, i) => b === 0x81 && qr[i + 1] === 0xa6)).toBe(true);
+  });
+
+  it('advertises the full capability set KICKS BMS needs (not just the minimum)', () => {
+    const qr = Array.from(buildQueryReply(24, 80));
+    const hasQR = (qcode: number) =>
+      qr.some((b, i) => b === 0x81 && qr[i + 1] === qcode);
+    // the four that logon needed...
+    for (const q of [0x80, 0x81, 0x88, 0xa6]) expect(hasQR(q)).toBe(true);
+    // ...plus the ones whose absence made SEND MAP abend APCT
+    for (const q of [0x84, 0x85, 0x86, 0x87]) expect(hasQR(q)).toBe(true); // AlphaPart, CharSets, Color, Highlighting
   });
 
   it('parser answers a Read Partition Query with a response record', () => {

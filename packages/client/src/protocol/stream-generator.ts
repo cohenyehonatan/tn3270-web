@@ -32,6 +32,23 @@ export function buildReadModifiedResponse(
     return new Uint8Array(bytes);
   }
 
+  // Unformatted buffer (no field attributes anywhere): per the 3270 data stream,
+  // Read Modified returns the AID, cursor, then ALL character data with null
+  // (0x00) codes suppressed -- there are no fields/MDTs to walk. KICKS uses an
+  // unformatted screen for its command/ready line, so without this a typed
+  // transaction id (e.g. SGON) is never sent and the transaction abends APCT.
+  let formatted = false;
+  for (let i = 0; i < buffer.size; i++) {
+    if (buffer.getCell(i).isFieldAttribute) { formatted = true; break; }
+  }
+  if (!formatted) {
+    for (let i = 0; i < buffer.size; i++) {
+      const c = buffer.getCell(i).char;
+      if (c !== 0x00) bytes.push(c);
+    }
+    return new Uint8Array(bytes);
+  }
+
   // For each modified unprotected field, include SBA + data
   const modifiedFields = buffer.getModifiedFields();
   for (const field of modifiedFields) {
